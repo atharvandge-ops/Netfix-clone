@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: netflix-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: netflix-clone
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: netflix-server
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/netflix-clone
+      - PORT=5000
+    env_file:
+      - ./server/.env
+    depends_on:
+      - mongodb
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: netflix-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+
+volumes:
+  mongodb_data:

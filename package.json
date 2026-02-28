@@ -1,0 +1,23 @@
+{
+  "name": "netflix-clone",
+  "version": "1.0.0",
+  "description": "A subscription-based video streaming platform",
+  "main": "index.js",
+  "scripts": {
+    "client": "npm start --prefix client",
+    "server": "npm run dev --prefix server",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "install-all": "npm install && npm install --prefix client && npm install --prefix server"
+  },
+  "keywords": [
+    "netflix",
+    "streaming",
+    "mern",
+    "subscription"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
