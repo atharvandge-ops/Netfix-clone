@@ -1,8 +1,21 @@
 const cloudinary = require('../config/cloudinary');
-const streamifier = require('streamifier');
 
-const uploadVideo = (buffer, folder = 'videos') => {
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || !process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME === 'your_cloud_name_here';
+
+const uploadVideo = async (buffer, folder = 'videos') => {
+  if (DEMO_MODE) {
+    console.log('🎭 DEMO MODE: Simulating video upload');
+    return {
+      secure_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      public_id: `demo_video_${Date.now()}`,
+      resource_type: 'video',
+      format: 'mp4'
+    };
+  }
+
   return new Promise((resolve, reject) => {
+    const streamifier = require('streamifier');
+    
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: 'video',
@@ -26,8 +39,20 @@ const uploadVideo = (buffer, folder = 'videos') => {
   });
 };
 
-const uploadImage = (buffer, folder = 'thumbnails') => {
+const uploadImage = async (buffer, folder = 'thumbnails') => {
+  if (DEMO_MODE) {
+    console.log('🎭 DEMO MODE: Simulating thumbnail upload');
+    return {
+      secure_url: `https://picsum.photos/seed/${Date.now()}/1280/720`,
+      public_id: `demo_thumbnail_${Date.now()}`,
+      resource_type: 'image',
+      format: 'jpg'
+    };
+  }
+
   return new Promise((resolve, reject) => {
+    const streamifier = require('streamifier');
+    
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: 'image',
@@ -50,6 +75,11 @@ const uploadImage = (buffer, folder = 'thumbnails') => {
 };
 
 const deleteResource = async (publicId, resourceType = 'video') => {
+  if (DEMO_MODE) {
+    console.log('🎭 DEMO MODE: Simulating resource deletion');
+    return { result: 'ok' };
+  }
+
   try {
     const result = await cloudinary.uploader.destroy(publicId, {
       resource_type: resourceType

@@ -2,6 +2,8 @@ const stripe = require('../config/stripe');
 const User = require('../models/User');
 const Plan = require('../models/Plan');
 
+const DEMO_MODE = process.env.DEMO_MODE === 'true' || !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY.includes('REPLACE');
+
 const getPlans = async (req, res) => {
   try {
     const plans = await Plan.find({ active: true }).sort({ price: 1 });
@@ -25,10 +27,10 @@ const createSubscription = async (req, res) => {
     const { planId, paymentMethodId } = req.body;
     const userId = req.user.id;
 
-    if (!planId || !paymentMethodId) {
+    if (!planId) {
       return res.status(400).json({
         success: false,
-        message: 'Plan ID and payment method are required'
+        message: 'Plan ID is required'
       });
     }
 
@@ -41,6 +43,37 @@ const createSubscription = async (req, res) => {
     }
 
     const user = await User.findById(userId);
+
+    if (DEMO_MODE) {
+      console.log('🎭 DEMO MODE: Activating subscription without Stripe');
+      
+      user.subscriptionStatus = 'active';
+      user.subscriptionPlan = plan._id;
+      user.stripeCustomerId = `demo_cus_${userId}`;
+      user.stripeSubscriptionId = `demo_sub_${Date.now()}`;
+      user.subscriptionExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Subscription activated successfully (Demo Mode)',
+        data: {
+          subscription: {
+            id: user.stripeSubscriptionId,
+            status: 'active',
+            currentPeriodEnd: Math.floor(user.subscriptionExpiry.getTime() / 1000),
+            demoMode: true
+          }
+        }
+      });
+    }
+
+    if (!paymentMethodId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment method is required'
+      });
+    }
 
     let customerId = user.stripeCustomerId;
 
@@ -112,6 +145,21 @@ const cancelSubscription = async (req, res) => {
       });
     }
 
+    if (DEMO_MODE || user.stripeSubscriptionId.startsWith('demo_')) {
+      console.log('🎭 DEMO MODE: Cancelling subscription');
+      
+      user.subscriptionStatus = 'cancelled';
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Subscription cancelled (Demo Mode)',
+        data: {
+          cancelAt: user.subscriptionExpiry
+        }
+      });
+    }
+
     const subscription = await stripe.subscriptions.update(
       user.stripeSubscriptionId,
       { cancel_at_period_end: true }
@@ -148,7 +196,8 @@ const getSubscriptionStatus = async (req, res) => {
         subscriptionStatus: user.subscriptionStatus,
         plan: user.subscriptionPlan,
         expiry: user.subscriptionExpiry,
-        hasActiveSubscription: user.hasActiveSubscription()
+        hasActiveSubscription: user.hasActiveSubscription(),
+        demoMode: DEMO_MODE
       }
     });
   } catch (error) {
@@ -162,6 +211,10 @@ const getSubscriptionStatus = async (req, res) => {
 };
 
 const handleWebhook = async (req, res) => {
+  if (DEMO_MODE) {
+    return res.status(200).json({ received: true, demoMode: true });
+  }
+
   const sig = req.headers['stripe-signature'];
   let event;
 

@@ -9,15 +9,37 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
 
-const CheckoutForm = ({ selectedPlan, onSuccess }) => {
+const CheckoutForm = ({ selectedPlan, onSuccess, demoMode }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const handleDemoSubscribe = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await subscriptionService.createSubscription(selectedPlan._id, 'demo');
+      
+      if (response.success) {
+        onSuccess();
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Subscription failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (demoMode) {
+      handleDemoSubscribe();
+      return;
+    }
+
     if (!stripe || !elements) {
       return;
     }
@@ -60,28 +82,39 @@ const CheckoutForm = ({ selectedPlan, onSuccess }) => {
         </div>
       )}
 
-      <div className="bg-gray-800 p-4 rounded mb-4">
-        <CardElement
-          options={{
-            style: {
-              base: {
-                color: '#fff',
-                fontSize: '16px',
-                '::placeholder': {
-                  color: '#aab7c4'
+      {demoMode ? (
+        <div className="bg-blue-900 bg-opacity-50 border border-blue-500 p-4 rounded mb-4">
+          <p className="text-blue-200 text-sm mb-2">
+            🎭 <strong>Demo Mode Active</strong>
+          </p>
+          <p className="text-blue-300 text-sm">
+            No payment required. Click subscribe to activate your account instantly for testing.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-gray-800 p-4 rounded mb-4">
+          <CardElement
+            options={{
+              style: {
+                base: {
+                  color: '#fff',
+                  fontSize: '16px',
+                  '::placeholder': {
+                    color: '#aab7c4'
+                  }
                 }
               }
-            }
-          }}
-        />
-      </div>
+            }}
+          />
+        </div>
+      )}
 
       <button
         type="submit"
-        disabled={!stripe || loading}
+        disabled={(!stripe && !demoMode) || loading}
         className="w-full py-3 bg-red-600 text-white font-semibold rounded hover:bg-red-700 transition disabled:bg-gray-600 disabled:cursor-not-allowed"
       >
-        {loading ? 'Processing...' : `Subscribe - $${selectedPlan.price}/month`}
+        {loading ? 'Processing...' : demoMode ? 'Activate Subscription (Demo)' : `Subscribe - $${selectedPlan.price}/month`}
       </button>
     </form>
   );
@@ -92,12 +125,25 @@ const Pricing = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [demoMode, setDemoMode] = useState(false);
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchPlans();
+    checkDemoMode();
   }, []);
+
+  const checkDemoMode = async () => {
+    try {
+      const response = await subscriptionService.getSubscriptionStatus();
+      if (response.success && response.data.demoMode) {
+        setDemoMode(true);
+      }
+    } catch (error) {
+      setDemoMode(true);
+    }
+  };
 
   const fetchPlans = async () => {
     try {
@@ -139,6 +185,13 @@ const Pricing = () => {
           <p className="text-gray-300 text-xl">
             Join today and enjoy unlimited streaming
           </p>
+          {demoMode && (
+            <div className="mt-4 inline-block bg-blue-900 bg-opacity-50 border border-blue-500 px-6 py-3 rounded">
+              <p className="text-blue-200 text-sm">
+                🎭 <strong>Demo Mode:</strong> No payment required for testing
+              </p>
+            </div>
+          )}
         </div>
 
         {!showCheckout ? (
@@ -164,12 +217,21 @@ const Pricing = () => {
               </p>
             </div>
 
-            <Elements stripe={stripePromise}>
+            {demoMode ? (
               <CheckoutForm
                 selectedPlan={selectedPlan}
                 onSuccess={handlePaymentSuccess}
+                demoMode={true}
               />
-            </Elements>
+            ) : (
+              <Elements stripe={stripePromise}>
+                <CheckoutForm
+                  selectedPlan={selectedPlan}
+                  onSuccess={handlePaymentSuccess}
+                  demoMode={false}
+                />
+              </Elements>
+            )}
 
             <button
               onClick={() => setShowCheckout(false)}
