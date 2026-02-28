@@ -4,14 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { subscriptionService } from '../services/subscriptionService';
 import PlanCard from '../components/PlanCard';
 import Loading from '../components/Loading';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLIC_KEY);
-
-const CheckoutForm = ({ selectedPlan, onSuccess, demoMode }) => {
-  const stripe = useStripe();
-  const elements = useElements();
+const DemoCheckoutForm = ({ selectedPlan, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,6 +18,8 @@ const CheckoutForm = ({ selectedPlan, onSuccess, demoMode }) => {
       
       if (response.success) {
         onSuccess();
+      } else {
+        setError(response.message || 'Subscription failed');
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Subscription failed');
@@ -32,91 +28,32 @@ const CheckoutForm = ({ selectedPlan, onSuccess, demoMode }) => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (demoMode) {
-      handleDemoSubscribe();
-      return;
-    }
-
-    if (!stripe || !elements) {
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const { error: stripeError, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: elements.getElement(CardElement)
-      });
-
-      if (stripeError) {
-        setError(stripeError.message);
-        setLoading(false);
-        return;
-      }
-
-      const response = await subscriptionService.createSubscription(
-        selectedPlan._id,
-        paymentMethod.id
-      );
-
-      if (response.success) {
-        onSuccess();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Payment failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="mt-6">
+    <div className="mt-6">
       {error && (
         <div className="bg-red-600 text-white p-3 rounded mb-4">
           {error}
         </div>
       )}
 
-      {demoMode ? (
-        <div className="bg-blue-900 bg-opacity-50 border border-blue-500 p-4 rounded mb-4">
-          <p className="text-blue-200 text-sm mb-2">
-            🎭 <strong>Demo Mode Active</strong>
-          </p>
-          <p className="text-blue-300 text-sm">
-            No payment required. Click subscribe to activate your account instantly for testing.
-          </p>
-        </div>
-      ) : (
-        <div className="bg-gray-800 p-4 rounded mb-4">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  color: '#fff',
-                  fontSize: '16px',
-                  '::placeholder': {
-                    color: '#aab7c4'
-                  }
-                }
-              }
-            }}
-          />
-        </div>
-      )}
+      <div className="bg-blue-900 bg-opacity-50 border border-blue-500 p-4 rounded mb-4">
+        <p className="text-blue-200 text-sm mb-2">
+          🎭 <strong>Demo Mode Active</strong>
+        </p>
+        <p className="text-blue-300 text-sm">
+          No payment required. Click subscribe to activate your account instantly for testing.
+        </p>
+      </div>
 
       <button
-        type="submit"
-        disabled={(!stripe && !demoMode) || loading}
+        type="button"
+        onClick={handleDemoSubscribe}
+        disabled={loading}
         className="w-full py-3 bg-red-600 text-white font-semibold rounded hover:bg-red-700 transition disabled:bg-gray-600 disabled:cursor-not-allowed"
       >
-        {loading ? 'Processing...' : demoMode ? 'Activate Subscription (Demo)' : `Subscribe - $${selectedPlan.price}/month`}
+        {loading ? 'Activating...' : 'Activate Subscription (Demo)'}
       </button>
-    </form>
+    </div>
   );
 };
 
@@ -125,25 +62,13 @@ const Pricing = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [demoMode, setDemoMode] = useState(false);
-  const { user, isAuthenticated } = useAuth();
+  const [demoMode, setDemoMode] = useState(true);
+  const { user, isAuthenticated, checkAuth } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchPlans();
-    checkDemoMode();
   }, []);
-
-  const checkDemoMode = async () => {
-    try {
-      const response = await subscriptionService.getSubscriptionStatus();
-      if (response.success && response.data.demoMode) {
-        setDemoMode(true);
-      }
-    } catch (error) {
-      setDemoMode(true);
-    }
-  };
 
   const fetchPlans = async () => {
     try {
@@ -167,7 +92,8 @@ const Pricing = () => {
     setShowCheckout(true);
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = async () => {
+    await checkAuth();
     navigate('/browse');
   };
 
@@ -211,27 +137,24 @@ const Pricing = () => {
               Complete Your Subscription
             </h2>
             <div className="mb-6">
-              <p className="text-white mb-2">Selected Plan: {selectedPlan.name}</p>
+              <p className="text-white mb-2">Selected Plan: <span className="font-bold">{selectedPlan.name}</span></p>
               <p className="text-gray-400 mb-2">
                 ${selectedPlan.price}/month
               </p>
+              <div className="mt-4 space-y-2">
+                {selectedPlan.features?.map((feature, index) => (
+                  <div key={index} className="flex items-center text-gray-300 text-sm">
+                    <span className="text-green-500 mr-2">✓</span>
+                    <span>{feature}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {demoMode ? (
-              <CheckoutForm
-                selectedPlan={selectedPlan}
-                onSuccess={handlePaymentSuccess}
-                demoMode={true}
-              />
-            ) : (
-              <Elements stripe={stripePromise}>
-                <CheckoutForm
-                  selectedPlan={selectedPlan}
-                  onSuccess={handlePaymentSuccess}
-                  demoMode={false}
-                />
-              </Elements>
-            )}
+            <DemoCheckoutForm
+              selectedPlan={selectedPlan}
+              onSuccess={handlePaymentSuccess}
+            />
 
             <button
               onClick={() => setShowCheckout(false)}
