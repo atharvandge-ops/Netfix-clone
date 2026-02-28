@@ -89,8 +89,8 @@ const UploadVideo = () => {
     setError('');
     setSuccessMessage('');
 
-    if (!videoFile || !thumbnailFile) {
-      setError('Please select both video and thumbnail files');
+    if (!videoFile) {
+      setError('Please select a video file');
       return;
     }
 
@@ -107,7 +107,9 @@ const UploadVideo = () => {
     try {
       const uploadData = new FormData();
       uploadData.append('video', videoFile);
-      uploadData.append('thumbnail', thumbnailFile);
+      if (thumbnailFile) {
+        uploadData.append('thumbnail', thumbnailFile);
+      }
       uploadData.append('title', formData.title);
       uploadData.append('description', formData.description);
       uploadData.append('duration', formData.duration);
@@ -245,7 +247,7 @@ const UploadVideo = () => {
 
             <div className="md:col-span-2">
               <label className="block text-white font-semibold mb-2">
-                Thumbnail Image *
+                Thumbnail Image (Optional)
                 <span className="text-gray-400 text-sm font-normal ml-2">(JPG, PNG - Recommended 1280x720)</span>
               </label>
               <div className="space-y-3">
