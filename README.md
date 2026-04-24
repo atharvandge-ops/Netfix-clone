@@ -1,5 +1,8 @@
 # Netflix Clone - Video Streaming Platform
 
+## 🔗 GitHub Repository
+https://github.com/atharvandge-ops/netfix-clone
+
 A full-stack subscription-based video streaming platform built with the MERN stack (MongoDB, Express, React, Node.js).
 
 ## Features
@@ -315,10 +318,12 @@ This is a proof-of-concept project. Feel free to extend and customize as needed.
 
 See `QUICKSTART.md` for common issues and solutions.
 
-## License
-
+## 📄 License
 MIT
 
----
+## 👨‍💻 Author
+Atharv Andge  
+[GH Raisoni International skill Tech University,pune]  
+Roll No: [SA109]
 
 Built with ❤️ using MERN Stack
